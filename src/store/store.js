@@ -30,6 +30,12 @@ function createSiweMessage(address, statement) {
 }
 
 const useStore = create((set, get) => ({
+  showBusy: false,
+  setShowBusy: (val) => set((state) => {
+    return {
+      showBusy: val
+    }
+  }),
   txInfo: {
     status: 'HIDDEN', // START, STOP, HIDDEN
     result: 'PENDING', // PENDING, SUCCESS, ERROR
@@ -146,10 +152,12 @@ const useStore = create((set, get) => ({
         });
         console.log(resp.data);
         validToken = tokenForAddress;
+        console.log('valid token !!');
         set({
           loginStatus: 'LOGGEDIN', accessToken: validToken
         });
       } catch (err) {
+        console.log('invalid token !!');
         console.error(err);
       }
     }
@@ -236,6 +244,7 @@ const useStore = create((set, get) => ({
     const amountToken = (await dao.coinToToken(signer.address, amount))[0];
     set({ coinToTokenResult: amountToken });
   },
+
   tokenToCoin: async (amount) => {
     const { signer, contracts } = get();
     const { dao } = contracts;
@@ -244,6 +253,7 @@ const useStore = create((set, get) => ({
   },
 
   maxBorrow: 0n,
+
   calcMaxBorrow: async (amount) => {
     const { signer, contracts } = get();
     const { zil } = contracts;
@@ -261,6 +271,7 @@ const useStore = create((set, get) => ({
   },
 
   updateBalance: (balance) => set({ balance }),
+
   updatePrice: (buyPrice, sellPrice) => set({ buyPrice, sellPrice }),
 
   refreshBalance: async () => {
@@ -797,7 +808,60 @@ const useStore = create((set, get) => ({
     }
   },
 
+  topupData: {
+    fee: 5000,
+    minimumTopup: 50000,
+    rows: []
+  },
 
+  getTopupData: async () => {
+    console.log('getTopupData');
+    const { accessToken } = get();
+    try {
+      const resp = await axios.get(CONFIG.baseUrl + '/topups/me', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        },
+        params: {
+          page: 0,
+          size: 1000
+        }
+      });
+
+      const json = resp.data;
+      console.log(json);
+      const { topupData } = get();
+      set({ topupData: { ...topupData, rows: json.items } });
+    } catch (err) {
+      console.error(err);
+      const errMsg = err && err.message ? err.message : 'getTopupData error';
+    }
+  },
+
+  createTopup: async (amount) => {
+    console.log('createTopup');
+    const amountCoin = amount + '';
+    const { signer, accessToken } = get();
+    try {
+      const resp = await axios.post(CONFIG.baseUrl + '/topups', {
+        amountCoin: amountCoin,
+        addressReceiver: signer.address
+      }, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      const json = resp.data;
+      console.log(json);
+
+      await get().getTopupData();
+
+    } catch (err) {
+      console.error(err);
+      const errMsg = err && err.message ? err.message : 'getTopupData error';
+    }
+  },
 }))
 
 export default {

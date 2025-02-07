@@ -18,7 +18,9 @@ import {
   Radio,
   Preloader,
   Tabbar,
-  TabbarLink
+  TabbarLink,
+  Dialog,
+  DialogButton
 } from 'konsta/react';
 import {
   useAppKit,
@@ -33,6 +35,7 @@ import { BrowserProvider, JsonRpcSigner, formatEther, parseUnits, Contract, pars
 import toast, { Toaster } from 'react-hot-toast';
 import store from './store/store';
 import Lib from './Lib';
+import Balance from './Balance';
 import Stake from './Stake';
 import Swap from './Swap';
 
@@ -40,7 +43,7 @@ const { useStore } = store;
 const { e9, e18, CONFIG, bigIntReplacer, wei2fiat } = Lib;
 
 export default function Wallet(props) {
-  const { loginStatus, signer, balance, gasSymbol, coinSymbol, tokenSymbol, faucet
+  const { loginStatus, signer, balance, gasSymbol, coinSymbol, tokenSymbol, faucet, showBusy
   } = useStore();
   const { open } = useAppKit();
   const [, setLocation] = useLocation();
@@ -51,49 +54,8 @@ export default function Wallet(props) {
   let content;
   if (activeTab === 'tab-1') {
     content = (
-      <div className='grid grid-cols-1 gap-2'>
-        <Card className='flex flex-col'>
-          <pre className='text-center'>
-            Saldo RP<br />
-            50.000<br />
-            &nbsp;
-          </pre>
-          <div className='flex'>
-            <Segmented outline>
-              <SegmentedButton
-                active={activeSegmented === 1}
-                onClick={() => setActiveSegmented(1)}
-              >
-                Pengisian
-              </SegmentedButton>
-              <SegmentedButton
-                active={activeSegmented === 2}
-                onClick={() => setActiveSegmented(2)}
-              >
-                Penarikan
-              </SegmentedButton>
-            </Segmented>
-          </div>
-        </Card>
-        <Card className=''>
-          <div className='flex justify-end'>
-            <div>
-              <Button onClick={() => console.log('!')}>Pengisian Baru</Button>
-            </div>
-          </div>
-          <List className='-m-4'>
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5].map(row => {
-              return (
-                <ListItem
-                  link
-                  header="INV/25/12/02/212"
-                  title="500.000 RP"
-                  footer="Cancelled"
-                />
-              );
-            })}
-          </List>
-        </Card>
+      <div>
+        <Balance />
       </div>
     );
   } else if (activeTab === 'tab-2') {
@@ -158,6 +120,14 @@ export default function Wallet(props) {
           </Tabbar>
         </div>
       </div>
+      <Dialog
+        opened={showBusy}
+        content={
+          <div className='p-8 flex justify-center items-center'>
+            <Preloader />
+          </div>
+        }
+      />
     </Page >
   )
 }
