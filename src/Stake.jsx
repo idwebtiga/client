@@ -23,6 +23,7 @@ import { BrowserProvider, JsonRpcSigner, formatEther, parseUnits, Contract } fro
 import toast, { Toaster } from 'react-hot-toast';
 import store from './store/store';
 import Lib from './Lib';
+import Loan from './Loan';
 
 const { useStore } = store;
 const { e9, e18, CONFIG, bigIntReplacer, wei2fiat } = Lib;
@@ -44,6 +45,7 @@ export default function Stake(props) {
   const [amountStake, setAmountStake] = useState('');
   const [amountUnstake, setAmountUnstake] = useState('');
   const [activeSegmented, setActiveSegmented] = useState(1);
+  const [showLoan, setShowLoan] = useState(-1);
 
   const updateMaxBorrow = async (val) => {
     const amount = Number(val) > 0 ? BigInt(parseEther(val)) : 0n;
@@ -134,7 +136,16 @@ export default function Stake(props) {
     </div>
   );
 
+  let loans = [];
+  if (zilData && zilData.loans) loans = zilData.loans;
 
+  if (showLoan > 0) {
+    return (
+      <div>
+        <Loan nftId={showLoan} onBack={() => setShowLoan(-1)} />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -143,13 +154,15 @@ export default function Stake(props) {
       </Card>
       <Card className=''>
         <List className='-m-4'>
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5].map(row => {
+          {loans.map(loan => {
+            const status = 'Belum Lunas';
             return (
               <ListItem
                 link
-                header={"Jaminan 20.000.000 " + tokenSymbol}
-                title="500.000 RP"
-                footer="Belum Lunas"
+                header={"id: " + loan.nftId + ' - ' + status}
+                title={wei2fiat(loan.borrowed) + ' ' + coinSymbol}
+                footer={'Jaminan: ' + wei2fiat(loan.staked) + ' ' + tokenSymbol}
+                onClick={() => setShowLoan(loan.nftId)}
               />
             );
           })}

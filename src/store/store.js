@@ -88,9 +88,6 @@ const useStore = create((set, get) => ({
   gasSymbol: '',
   coinSymbol: '',
   tokenSymbol: '',
-  ready: false,
-  setReady: () => set({ ready: true }),
-
   accessToken: false,
 
   loginStatus: 'DISCONNECTED', // CONNECTED, LOGGEDIN
@@ -144,8 +141,8 @@ const useStore = create((set, get) => ({
     const tokenForAddress = Lib.getTokenforAddress(address);
     if (tokenForAddress && tokenForAddress.length > 0) {
       try {
-        console.log('txtasks/check');
-        const resp = await axios.get(CONFIG.baseUrl + '/txtasks/check', {
+        console.log('users/profile');
+        const resp = await axios.get(CONFIG.baseUrl + '/users/profile', {
           headers: {
             'Authorization': `Bearer ${tokenForAddress}`
           }
@@ -183,7 +180,12 @@ const useStore = create((set, get) => ({
         message, signature
       });
 
-      const resp = await axios.post(CONFIG.baseUrl + '/auth/siwelogin', {
+      console.log('message:');
+      console.log(JSON.stringify({ message, signature }, null, 2));
+      console.log('signature:');
+      console.log(signature);
+
+      const resp = await axios.post(CONFIG.baseUrl + '/users/authSiwe', {
         message,
         signature
       });
@@ -206,13 +208,17 @@ const useStore = create((set, get) => ({
     const { accessToken } = get();
 
     try {
-      console.log('txtasks/faucet');
-      const resp = await axios.get(CONFIG.baseUrl + '/txtasks/faucet', {
+      console.log('transactions/faucet');
+      const resp = await axios.get(CONFIG.baseUrl + '/transactions/faucet', {
         headers: {
           'Authorization': `Bearer ${accessToken}`
         }
       });
       console.log(resp.data);
+      const json = resp.data;
+      const txHash = json.txHash;
+      const receipt = await provider.waitForTransaction(txHash, 1);
+      console.log(receipt);
       await get().refreshBalance();
     } catch (err) {
       console.error(err);
@@ -517,7 +523,7 @@ const useStore = create((set, get) => ({
 
   buyToken: async (amount) => {
     console.log('buyToken');
-    const { signer, contracts } = get();
+    const { signer, contracts, provider } = get();
     const { dao, delegator } = contracts;
     try {
       let resultMin = (await dao.coinToToken(signer.address, amount))[0];
@@ -580,8 +586,8 @@ const useStore = create((set, get) => ({
 
       const { accessToken } = get();
 
-      console.log('txtasks/buyToken');
-      const resp = await axios.post(CONFIG.baseUrl + '/txtasks/buyToken', {
+      console.log('transactions/buyToken');
+      const resp = await axios.post(CONFIG.baseUrl + '/transactions/buyToken', {
         amountCoin: value.amountCoin.toString(),
         resultMinimum: value.resultMinimum.toString(),
         fee: value.fee.toString(),
@@ -595,6 +601,11 @@ const useStore = create((set, get) => ({
       });
 
       console.log(resp.data);
+      const json = resp.data;
+      const txHash = json.txHash;
+      const receipt = await provider.waitForTransaction(txHash, 1);
+      console.log(receipt);
+
       await get().refreshBalance();
 
     } catch (err) {
@@ -605,7 +616,7 @@ const useStore = create((set, get) => ({
 
   sellToken: async (amount) => {
     console.log('sellToken');
-    const { signer, contracts } = get();
+    const { signer, contracts, provider } = get();
     const { dao, delegator } = contracts;
     try {
       let resultMin = (await dao.tokenToCoin(signer.address, amount))[0];
@@ -655,8 +666,8 @@ const useStore = create((set, get) => ({
 
       const { accessToken } = get();
 
-      console.log('txtasks/sellToken');
-      const resp = await axios.post(CONFIG.baseUrl + '/txtasks/sellToken', {
+      console.log('transactions/sellToken');
+      const resp = await axios.post(CONFIG.baseUrl + '/transactions/sellToken', {
         amountToken: value.amountToken.toString(),
         resultMinimum: value.resultMinimum.toString(),
         fee: value.fee.toString(),
@@ -669,7 +680,12 @@ const useStore = create((set, get) => ({
         }
       });
 
-      console.log(resp.data);
+      const json = resp.data;
+      console.log(json);
+      const txHash = json.txHash;
+      const receipt = await provider.waitForTransaction(txHash, 1);
+      console.log(receipt);
+
       await get().refreshBalance();
 
     } catch (err) {
@@ -680,7 +696,7 @@ const useStore = create((set, get) => ({
 
   takeLoanViaDelegator: async (amount) => {
     console.log('takeLoanViaDelegator');
-    const { signer, contracts } = get();
+    const { signer, contracts, provider } = get();
     const { zil, delegator } = contracts;
     try {
       const d = await delegator.eip712Domain();
@@ -720,8 +736,8 @@ const useStore = create((set, get) => ({
 
       const { accessToken } = get();
 
-      console.log('txtasks/takeLoan');
-      const resp = await axios.post(CONFIG.baseUrl + '/txtasks/takeLoan', {
+      console.log('transactions/takeLoan');
+      const resp = await axios.post(CONFIG.baseUrl + '/transactions/takeLoan', {
         amountToken: value.amountToken.toString(),
         fee: value.fee.toString(),
         nonce: value.nonce.toString(),
@@ -733,7 +749,12 @@ const useStore = create((set, get) => ({
         }
       });
 
-      console.log(resp.data);
+      const json = resp.data;
+      console.log(json);
+      const txHash = json.txHash;
+      const receipt = await provider.waitForTransaction(txHash, 1);
+      console.log(receipt);
+
       await get().refreshBalance();
 
     } catch (err) {
@@ -744,7 +765,7 @@ const useStore = create((set, get) => ({
 
   payLoanViaDelegator: async (nftId, amount) => {
     console.log('payLoanViaDelegator');
-    const { signer, contracts, accessToken } = get();
+    const { signer, contracts, accessToken, provider } = get();
     const { delegator } = contracts;
     try {
       const d = await delegator.eip712Domain();
@@ -785,8 +806,8 @@ const useStore = create((set, get) => ({
 
       if (sender.toLowerCase() !== signer.address.toLowerCase()) throw new Error('invalid verification');
 
-      console.log('txtasks/payLoan');
-      const resp = await axios.post(CONFIG.baseUrl + '/txtasks/payLoan', {
+      console.log('transactions/payLoan');
+      const resp = await axios.post(CONFIG.baseUrl + '/transactions/payLoan', {
         nftId: value.nftId.toString(),
         amountCoin: value.amountCoin.toString(),
         fee: value.fee.toString(),
@@ -800,6 +821,11 @@ const useStore = create((set, get) => ({
       });
 
       console.log(resp.data);
+      const json = resp.data;
+      const txHash = json.txHash;
+      const receipt = await provider.waitForTransaction(txHash, 1);
+      console.log(receipt);
+
       await get().refreshBalance();
 
     } catch (err) {

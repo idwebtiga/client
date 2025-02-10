@@ -23,11 +23,15 @@ import toast, { Toaster } from 'react-hot-toast';
 import store from './store/store';
 import Lib from './Lib';
 import Config from './Config';
+import { IoMdArrowBack } from "react-icons/io";
 
 const { useStore } = store;
 const { wei2fiat } = Lib;
 
 export default function Loan(props) {
+  let { nftId, onBack } = props;
+  nftId = Number(nftId);
+  console.log({ nftId });
   const { signer, contracts, balance, gasSymbol, coinSymbol, tokenSymbol,
     setTxModalVisible,
     setTxModalStop,
@@ -41,15 +45,22 @@ export default function Loan(props) {
     payLoanViaDelegator
   } = useStore();
 
-  const [selectedIndex, setSelectedIndex] = useState(-1);
   const [amountPayLoan, setAmountPayLoan] = useState('');
+
+  let loans = [];
+  if (zilData && zilData.loans) loans = zilData.loans;
+  let loan = false;
+  for (let i = 0; i < loans.length; i++) {
+    if (Number(loans[i].nftId) === nftId) loan = loans[i];
+  }
+
+  let info = null;
 
   const onChangeAmountPayLoan = (e) => {
     setAmountPayLoan(e.target.value);
   };
 
   const setPayLoanMax = () => {
-    const loan = zilData.loans[selectedIndex];
     const val = formatEther(loan.borrowed);
     setAmountPayLoan(val);
   }
@@ -70,7 +81,6 @@ export default function Loan(props) {
   }
 
   const doPayLoanByDelegator = async () => {
-    const loan = zilData.loans[selectedIndex];
     if (!(apl > 0n)) return toast.error('Invalid amount.');
     const nftId = loan.nftId;
     await payLoanViaDelegator(nftId, apl);
@@ -80,15 +90,15 @@ export default function Loan(props) {
     return (
       <div>
         <Block margin='my-1'>
-          <pre>
-            Owned: {wei2fiat(balance.coin)} {coinSymbol}<br />
-            Allowance: {wei2fiat(zilData.allowanceCoin)} {coinSymbol}
-          </pre>
+          NFT Id: {Number(loan.nftId)}<br />
+          Jaminan: {wei2fiat(loan.staked)} {tokenSymbol}<br />
+          Pinjaman: {wei2fiat(loan.borrowed)} {coinSymbol}<br />
+          Pembayaran tersedia: {wei2fiat(balance.coin)} {coinSymbol}<br />
         </Block>
         <List margin='my-1'>
           <ListInput
-            label="Amount loan to pay"
-            type="text"
+            label={"Jumlah " + coinSymbol + ' untuk dibayarkan'}
+            type="number"
             value={amountPayLoan}
             onChange={onChangeAmountPayLoan}
           />
@@ -99,7 +109,7 @@ export default function Loan(props) {
               <Button outline onClick={setPayLoanMax}>Max</Button>
             </div>
             <div className='col-span-2'>
-              <Button onClick={doPayLoanByDelegator}>Pay Loan</Button>
+              <Button onClick={doPayLoanByDelegator}>Bayar Pinjaman</Button>
             </div>
           </div>
         </Block>
@@ -107,38 +117,20 @@ export default function Loan(props) {
     );
   };
 
-  let loans = [];
-  if (zilData && zilData.loans) loans = zilData.loans;
-  // console.log({ zilData, loans })
-
   return (
     <div>
-      {loans.map((loan, index) => {
-        return (
-          <Card outline key={index}>
-            <div className='flex gap-0'>
-              <div className="flex-0 flex items-center justify-center">
-                <Radio
-                  name="select-nft"
-                  value={index}
-                  checked={index === selectedIndex}
-                  onChange={() => setSelectedIndex(index)}
-                />
-              </div>
-              <div className="flex-1">
-                <Block margin='my-1'>
-                  <pre>
-                    Loan id: {Number(loan.nftId)}<br />
-                    Collateral: {wei2fiat(loan.staked)} {tokenSymbol}<br />
-                    Loan: {wei2fiat(loan.borrowed)} {coinSymbol}
-                  </pre>
-                </Block>
-              </div>
-            </div>
-          </Card>
-        );
-      })}
-      {panelPayLoan()}
+      <Card>
+        <div className='flex flex-row'>
+          <div className=''>
+            <Button clear onClick={onBack}>
+              <IoMdArrowBack size={32} />
+            </Button></div>
+          <div className='text-right'></div>
+        </div>
+      </Card>
+      <Card>
+        {panelPayLoan()}
+      </Card>
     </div>
   )
 }
