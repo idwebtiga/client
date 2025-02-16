@@ -43,14 +43,16 @@ const { e9, e18, CONFIG, bigIntReplacer, wei2fiat } = Lib;
 
 export default function Balance(props) {
   const { loginStatus, getTopupData, topupData, signer, balance, gasSymbol, coinSymbol,
-    tokenSymbol, faucet, setShowBusy, createTopup
+    tokenSymbol, faucet, setShowBusy, createTopup, getPaymentData, delegatorFee
   } = useStore();
 
   const [activeSegmented, setActiveSegmented] = useState(1);
   const [show1, setShow1] = useState('list');
   const [amountTopup, setAmountTopup] = useState('');
   const [showConfirmTopup, setShowConfirmTopup] = useState(false);
-  const [showHitApi, setShowHitApi] = useState(false);
+  const [showConfirmPayment, setShowConfirmPayment] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(false);
+  const [phoneNum, setPhoneNum] = useState('');
 
   const doNewTopup = async () => {
     setShowConfirmTopup(false);
@@ -60,25 +62,54 @@ export default function Balance(props) {
     setShow1('list');
   }
 
-  let total = Number(amountTopup) + Number(topupData.fee);
+  const tc = {
+    amount: amountTopup,
+    fee: delegatorFee,
+    total: Number(amountTopup) + Number(delegatorFee)
+  }
 
   const confirmTopupView = (
     <div className='grid grid-cols-2 gap-2'>
-      <div>{amountTopup} {coinSymbol}</div>
-      <div className='text-right'>{amountTopup}</div>
+      <div>{tc.amount} {coinSymbol}</div>
+      <div className='text-right'>{tc.amount}</div>
       <div>Biaya penambangan</div>
-      <div className='text-right'>{topupData.fee}</div>
+      <div className='text-right'>{tc.fee}</div>
       <div className='border-gray-500 border-t-4 col-span-2'></div>
       <div className=''>Total</div>
-      <div className='text-right'>{total}</div>
+      <div className='text-right'>{tc.total}</div>
+    </div>
+  );
+
+  // todo
+  const pc = {
+    nameItem: 'ITEM',
+    amount: 0,
+    fee: 0,
+    total: 0
+  };
+
+  const confirmPaymentView = (
+    <div className='grid grid-cols-2 gap-2'>
+      <div className='col-span-2 font-bold'>{pc.nameItem}</div>
+      <div>Harga item</div>
+      <div className='text-right'>{pc.amount} {coinSymbol}</div>
+      <div>Biaya penambangan</div>
+      <div className='text-right'>{pc.fee} {coinSymbol}</div>
+      <div className='border-gray-500 border-t-4 col-span-2'></div>
+      <div className=''>Total</div>
+      <div className='text-right'>{pc.total}</div>
     </div>
   );
 
   useEffect(() => {
     if (loginStatus === 'LOGGEDIN') {
-      getTopupData();
+      if (activeSegmented === 1) {
+        getTopupData();
+      } else if (activeSegmented === 2) {
+        getPaymentData();
+      }
     }
-  }, [loginStatus]);
+  }, [loginStatus, activeSegmented]);
 
   const showNewTopup = () => {
     setShow1('new');
@@ -93,14 +124,15 @@ export default function Balance(props) {
         <List className='-m-4'>
           {topupData.rows.map(row => {
             let status = 'Menunggu pembayaran';
-            if (row.paymentConfirmed) status = 'Pembayaran diterima';
-            if (row.txConfirmed) status = 'Selesai';
-            if (row.paymentCancelled) status = 'Batal';
+            if (row.confirmed) status = 'Pembayaran diterima';
+            if (row.minted) status = 'Selesai';
+            if (row.cancelled) status = 'Batal';
             return (
               <ListItem
+                key={row.invoiceId}
                 link
                 header={row.invoiceId}
-                title={row.totalPayment}
+                title={row.total}
                 footer={status}
               />
             );
@@ -121,7 +153,7 @@ export default function Balance(props) {
         </Card>
       );
     } else if (show1 === 'new') {
-      const enableBtnNewTopup = Number(amountTopup) > topupData.minimumTopup;
+      const enableBtnNewTopup = Number(amountTopup) >= topupData.minimumTopup;
       content = (
         <Card className=''>
           <div className='flex justify-center'>
@@ -151,18 +183,57 @@ export default function Balance(props) {
         </Card>
       );
     }
-  } else {
+  } else if (activeSegmented === 2) {
+    // todo
+    const price = 'todo';
+    const enableBtnNewPayment = true;
 
+    content = (
+      <Card className=''>
+        <div className='flex justify-center'>
+          Form Belanja
+        </div>
+        <List margin='my-1'>
+          <ListInput
+            label={'Nomor Tujuan'}
+            type="tel"
+            placeholder="Misal (0813...)"
+            value={phoneNum}
+            onChange={e => setPhoneNum(e.target.value)}
+          />
+          <ListInput
+            label="Saldo"
+            type="select"
+            dropdown
+            placeholder="Pilih saldo eMoney"
+          >
+            <option value={1}>Saldo GOPAY 50.000</option>
+            <option value={2}>Saldo OVO 50.000</option>
+          </ListInput>
+        </List>
+        <Block margin='my-1'>
+          <div className="grid grid-cols-1 gap-2">
+            <div className='col-span-2'>
+              Harga: {price} {coinSymbol}
+            </div>
+            <div>
+              <Button disabled={!enableBtnNewPayment} onClick={() => 
+                setShowConfirmPayment(true)}>Bayar</Button>
+            </div>
+          </div>
+        </Block>
+      </Card>
+    );
   }
 
   return (
     <div className='grid grid-cols-1 gap-2'>
       <Card className='flex flex-col'>
-        <pre className='text-center'>
+        <div className='text-center'>
           Saldo {coinSymbol}<br />
           {wei2fiat(balance.coin)}<br />
           &nbsp;
-        </pre>
+        </div>
         <div className='flex'>
           <Segmented outline>
             <SegmentedButton
@@ -175,7 +246,7 @@ export default function Balance(props) {
               active={activeSegmented === 2}
               onClick={() => setActiveSegmented(2)}
             >
-              Penarikan
+              Pembelian
             </SegmentedButton>
           </Segmented>
         </div>
@@ -190,6 +261,23 @@ export default function Balance(props) {
         buttons={
           <>
             <DialogButton onClick={() => setShowConfirmTopup(false)}>
+              Batal
+            </DialogButton>
+            <DialogButton strong onClick={doNewTopup}>
+              Konfirmasi
+            </DialogButton>
+          </>
+        }
+      />
+
+      <Dialog
+        opened={showConfirmPayment}
+        onBackdropClick={() => setShowConfirmPayment(false)}
+        title="Belanja"
+        content={confirmPaymentView}
+        buttons={
+          <>
+            <DialogButton onClick={() => setShowConfirmPayment(false)}>
               Batal
             </DialogButton>
             <DialogButton strong onClick={doNewTopup}>

@@ -30,105 +30,138 @@ const { e9, e18, CONFIG, bigIntReplacer, wei2fiat } = Lib;
 
 export default function Stake(props) {
   const { signer, contracts, balance, gasSymbol, coinSymbol, tokenSymbol,
-    setTxModalVisible,
-    setTxModalStop,
-    refreshBalance,
-    refreshZilData,
     zilData,
-    approveTokenZil,
-    maxBorrow,
-    calcMaxBorrow,
-    takeLoan,
-    takeLoanViaDelegator
+    calculatedCollateral,
+    calcCollateral,
+    takeLoanByResultByDelegator
   } = useStore();
 
-  const [amountStake, setAmountStake] = useState('');
-  const [amountUnstake, setAmountUnstake] = useState('');
-  const [activeSegmented, setActiveSegmented] = useState(1);
+  // const [amountStake, setAmountStake] = useState('');
+  const [amountWanted, setAmountWanted] = useState('');
   const [showLoan, setShowLoan] = useState(-1);
 
-  const updateMaxBorrow = async (val) => {
-    const amount = Number(val) > 0 ? BigInt(parseEther(val)) : 0n;
-    await calcMaxBorrow(amount);
-  }
-  const onChangeAmountStake = async (e) => {
+  const onChangeAmountWanted = async (e) => {
     const val = e.target.value;
-    setAmountStake(val);
-    await updateMaxBorrow(val);
+    setAmountWanted(val);
+    const amount = Number(val) > 0 ? BigInt(parseEther(val)) : 0n;
+    await calcCollateral(amount);
   };
 
-  const setStakeMax = async () => {
-    const val = formatEther(balance.token);
-    setAmountStake(val);
-    await updateMaxBorrow(val);
+  const setWantedMax = async () => {
+    const val = formatEther(zilData.maxLoanCoin);
+    setAmountWanted(val);
+    const amount = Number(val) > 0 ? BigInt(parseEther(val)) : 0n;
+    await calcCollateral(amount);
   };
 
-  const ams = Number(amountStake) > 0 ? BigInt(parseEther(amountStake)) : 0n;
-  const disableApprove = ams === 0n || (ams > 0n && zilData.allowanceToken > 0n && zilData.allowanceToken >= ams);
-
-  const approveStake = async () => {
-    if (!(ams > 0n)) return toast.error('Invalid amount.');
-    setTxModalVisible();
-    await approveTokenZil(ams);
-    await refreshBalance();
-    await refreshZilData();
-    setTxModalStop();
+  const doTakeLoanByResult = async () => {
+    const amw = Number(amountWanted) > 0 ? BigInt(parseEther(amountWanted)) : 0n;
+    if (!(amw > 0n)) return toast.error('Invalid amount.');
+    await takeLoanByResultByDelegator(amw);
   }
 
-  const doStake = async () => {
-    if (!(ams > 0n)) return toast.error('Invalid amount.');
-    setTxModalVisible();
-    await takeLoan(ams);
-    await refreshBalance();
-    await refreshZilData();
-    setTxModalStop();
-  }
+  // const updateMaxBorrow = async (val) => {
+  //   const amount = Number(val) > 0 ? BigInt(parseEther(val)) : 0n;
+  //   await calcMaxBorrow(amount);
+  // }
 
-  const doTakeLoan = async () => {
-    if (!(ams > 0n)) return toast.error('Invalid amount.');
-    await takeLoanViaDelegator(ams);
-  }
+  // const onChangeAmountStake = async (e) => {
+  //   const val = e.target.value;
+  //   setAmountStake(val);
+  //   await updateMaxBorrow(val);
+  // };
 
-  const panelInfo = (
-    <Block margin='my-1'>
-      <div>
-        Owned: {wei2fiat(balance.token)} {tokenSymbol}<br />
-        Allowance: {wei2fiat(zilData.allowanceToken)} {tokenSymbol}<br />
-      </div>
-    </Block>
-  );
+  // const setStakeMax = async () => {
+  //   const val = formatEther(balance.token);
+  //   setAmountStake(val);
+  //   await updateMaxBorrow(val);
+  // };
 
-  const resultVal = Math.floor(Number(wei2fiat(maxBorrow)));
+  // const ams = Number(amountStake) > 0 ? BigInt(parseEther(amountStake)) : 0n;
+  // const disableApprove = ams === 0n || (ams > 0n && zilData.allowanceToken > 0n && zilData.allowanceToken >= ams);
 
-  const panelStake = (
+  // const approveStake = async () => {
+  //   if (!(ams > 0n)) return toast.error('Invalid amount.');
+  //   await approveTokenZil(ams);
+  // }
+
+  // const doStake = async () => {
+  //   if (!(ams > 0n)) return toast.error('Invalid amount.');
+  //   await takeLoan(ams);
+  // }
+
+  // const doTakeLoan = async () => {
+  //   if (!(ams > 0n)) return toast.error('Invalid amount.');
+  //   await takeLoanViaDelegator(ams);
+  // }
+
+  // const resultVal = Math.floor(Number(wei2fiat(maxBorrow)));
+
+  // const panelStake = (
+  //   <div className='-mx-4'>
+  //     <Block margin='my-1'>
+  //       <div>
+  //         Jaminan tersedia: {wei2fiat(balance.token)} {tokenSymbol}<br />
+  //         Maksimal pinjaman: {wei2fiat(zilData.availableLoanCoin)} {coinSymbol}<br />
+  //       </div>
+  //     </Block>
+  //     <List margin='my-1'>
+  //       <ListInput
+  //         label={"Jumlah " + tokenSymbol + ' untuk dijaminkan'}
+  //         type="number"
+  //         value={amountStake}
+  //         onChange={onChangeAmountStake}
+  //       />
+  //     </List>
+  //     <Block margin='my-1'>
+  //       <div className='mb-2'>
+  //         {resultVal > 0 ? 'Pinjaman dicairkan: ' + resultVal + ' ' + coinSymbol : ' '}<br />
+  //       </div>
+  //     </Block>
+  //     <Block margin='my-1'>
+  //       <div className='grid grid-cols-1 gap-2'>
+  //         <div className="grid grid-cols-3 gap-2">
+  //           <div className=''>
+  //             <Button outline onClick={setStakeMax}>Max</Button>
+  //           </div>
+  //           <div className='col-span-2'>
+  //             <Button onClick={doTakeLoan}>Pinjam</Button>
+  //           </div>
+  //         </div>
+  //       </div>
+  //     </Block>
+  //   </div>
+  // );
+
+  const panelWanted = (
     <div className='-mx-4'>
       <Block margin='my-1'>
         <div>
-          Tersedia untuk jaminan: {wei2fiat(balance.token)} {tokenSymbol}<br />
-          Pinjaman tersedia: {wei2fiat(zilData.allowanceToken)} {coinSymbol}<br />
+          Jaminan tersedia: {wei2fiat(balance.token)} {tokenSymbol}<br />
+          Maksimal pinjaman: {wei2fiat(zilData.maxLoanCoin)} {coinSymbol}<br />
         </div>
       </Block>
       <List margin='my-1'>
         <ListInput
-          label={"Jumlah " + tokenSymbol + ' untuk dijaminkan'}
+          label={'Jumlah pinjaman untuk diajukan'}
           type="number"
-          value={amountStake}
-          onChange={onChangeAmountStake}
+          value={amountWanted}
+          onChange={onChangeAmountWanted}
         />
       </List>
       <Block margin='my-1'>
         <div className='mb-2'>
-          {resultVal > 0 ? 'Pinjaman dicairkan: ' + resultVal + ' ' + coinSymbol : ' '}<br />
+          {calculatedCollateral > 0 ? 'Jaminan dibutuhkan: ' + wei2fiat(calculatedCollateral) + ' ' + tokenSymbol : ' '}<br />
         </div>
       </Block>
       <Block margin='my-1'>
         <div className='grid grid-cols-1 gap-2'>
           <div className="grid grid-cols-3 gap-2">
             <div className=''>
-              <Button outline onClick={setStakeMax}>Max</Button>
+              <Button outline onClick={setWantedMax}>Max</Button>
             </div>
             <div className='col-span-2'>
-              <Button onClick={doTakeLoan}>Pinjam</Button>
+              <Button onClick={doTakeLoanByResult}>Pinjam</Button>
             </div>
           </div>
         </div>
@@ -150,7 +183,7 @@ export default function Stake(props) {
   return (
     <div>
       <Card>
-        {panelStake}
+        {panelWanted}
       </Card>
       <Card className=''>
         <List className='-m-4'>

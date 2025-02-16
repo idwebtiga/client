@@ -6,7 +6,6 @@ import { abi as daoabi } from '../abi/DAO.json';
 import { abi as zilabi } from '../abi/ZILNFT.json';
 import { abi as coinabi } from '../abi/Coin.json';
 import { abi as tokenabi } from '../abi/Token.json';
-import { abi as configabi } from '../abi/Config.json';
 import { abi as delegatorabi } from '../abi/Delegator.json';
 import { generateNonce, SiweMessage } from 'siwe';
 import Config from '../Config';
@@ -89,6 +88,7 @@ const useStore = create((set, get) => ({
   coinSymbol: '',
   tokenSymbol: '',
   accessToken: false,
+  delegatorFee: '2000', // todo
 
   loginStatus: 'DISCONNECTED', // CONNECTED, LOGGEDIN
   loginSigner: async (walletProvider, chainId, signerAddress) => {
@@ -258,13 +258,21 @@ const useStore = create((set, get) => ({
     set({ tokenToCoinResult: amountCoin });
   },
 
-  maxBorrow: 0n,
+  calculatedBorrow: 0n,
 
-  calcMaxBorrow: async (amount) => {
-    const { signer, contracts } = get();
+  calcBorrow: async (amount) => {
+    const { contracts } = get();
     const { zil } = contracts;
-    const maxBorrow = await zil.calcMaxBorrow(signer.address, amount);
-    set({ maxBorrow });
+    const calculatedBorrow = await zil.calcBorrow(amount);
+    set({ calculatedBorrow });
+  },
+
+  calculatedCollateral: 0n,
+  calcCollateral: async (amount) => {
+    const { contracts } = get();
+    const { zil } = contracts;
+    const calculatedCollateral = await zil.calcCollateral(amount);
+    set({ calculatedCollateral });
   },
 
   zilData: {
@@ -341,6 +349,10 @@ const useStore = create((set, get) => ({
       const allowanceCoin = await coin.allowance(signer.address, CONFIG.zilAddress);
       const allowanceToken = await token.allowance(signer.address, CONFIG.zilAddress);
 
+      const user = signer.address;
+      const userToken = await token.balanceOf(user);
+      const maxLoanCoin = await zil.calcBorrow(userToken);
+
       const loans = [];
       const balanceNft = await zil.balanceOf(signer.address);
       for (let i = 0; i < Number(balanceNft); i++) {
@@ -362,8 +374,13 @@ const useStore = create((set, get) => ({
         tokenLocked,
         allowanceCoin,
         allowanceToken,
+        // ownedCollateralToken: userToken,
+        maxLoanCoin,
+        // revToken,
         loans
       };
+
+      console.log({ zilData });
 
       set({
         zilData
@@ -534,7 +551,7 @@ const useStore = create((set, get) => ({
       const name = d[1];
       const version = d[2];
       const chainId = d[3];
-      const fee = await delegator.feeCoin();
+      const fee = CONFIG.feeCoin;
       const nonce = (await delegator.getUserNonce(signer.address)) + 1n;
 
       const domain = {
@@ -627,7 +644,7 @@ const useStore = create((set, get) => ({
       const name = d[1];
       const version = d[2];
       const chainId = d[3];
-      const fee = await delegator.feeCoin();
+      const fee = CONFIG.feeCoin;
       const nonce = (await delegator.getUserNonce(signer.address)) + 1n;
 
       const domain = {
@@ -694,7 +711,7 @@ const useStore = create((set, get) => ({
     }
   },
 
-  takeLoanViaDelegator: async (amount) => {
+  takeLoanByDelegator: async (amount) => {
     console.log('takeLoanViaDelegator');
     const { signer, contracts, provider } = get();
     const { zil, delegator } = contracts;
@@ -703,7 +720,7 @@ const useStore = create((set, get) => ({
       const name = d[1];
       const version = d[2];
       const chainId = d[3];
-      const fee = await delegator.feeCoin();
+      const fee = CONFIG.feeCoin;
       const nonce = (await delegator.getUserNonce(signer.address)) + 1n;
 
       const domain = {
@@ -756,11 +773,20 @@ const useStore = create((set, get) => ({
       console.log(receipt);
 
       await get().refreshBalance();
+      await get().refreshZilData();
 
     } catch (err) {
       console.error(err);
       const errMsg = err && err.message ? err.message : 'sign error';
     }
+  },
+
+  takeLoanByResultByDelegator: async (amountWanted) => {
+    console.log('takeLoanByResultByDelegator');
+    const { contracts } = get();
+    const { zil } = contracts;
+    const amount = await zil.calcCollateral(amountWanted);
+    await get().takeLoanByDelegator(amount);
   },
 
   payLoanViaDelegator: async (nftId, amount) => {
@@ -772,7 +798,7 @@ const useStore = create((set, get) => ({
       const name = d[1];
       const version = d[2];
       const chainId = d[3];
-      const fee = await delegator.feeCoin();
+      const fee = CONFIG.feeCoin;
       const nonce = (await delegator.getUserNonce(signer.address)) + 1n;
 
       const domain = {
@@ -855,6 +881,7 @@ const useStore = create((set, get) => ({
       });
 
       const json = resp.data;
+      console.log('topup list:');
       console.log(json);
       const { topupData } = get();
       set({ topupData: { ...topupData, rows: json.items } });
@@ -870,8 +897,8 @@ const useStore = create((set, get) => ({
     const { signer, accessToken } = get();
     try {
       const resp = await axios.post(CONFIG.baseUrl + '/topups', {
-        amountCoin: amountCoin,
-        addressReceiver: signer.address
+        amount: amountCoin,
+        toAddress: signer.address
       }, {
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -886,6 +913,159 @@ const useStore = create((set, get) => ({
     } catch (err) {
       console.error(err);
       const errMsg = err && err.message ? err.message : 'getTopupData error';
+    }
+  },
+
+  paymentData: {
+    items: [],
+    rows: []
+  },
+
+  getPaymentData: async () => {
+    console.log('getPaymentData');
+    const { accessToken } = get();
+    try {
+      let resp = await axios.get(CONFIG.baseUrl + '/payments/items', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        },
+        params: {
+          page: 0,
+          size: 1000
+        }
+      });
+
+      const items = resp.data.items;
+
+      resp = await axios.get(CONFIG.baseUrl + '/payments/me', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        },
+        params: {
+          page: 0,
+          size: 1000
+        }
+      });
+
+      const rows = resp.data.items;
+      const paymentData = {
+        items,
+        rows
+      };
+
+      set({
+        paymentData
+      });
+    } catch (err) {
+      console.error(err);
+      const errMsg = err && err.message ? err.message : 'getPaymentData error';
+    }
+  },
+
+  createPayment: async (itemId) => {
+    console.log('createPayment');
+    const { signer, accessToken } = get();
+    try {
+      const resp = await axios.post(CONFIG.baseUrl + '/payments', {
+        itemId,
+        fromAddress: signer.address
+      }, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      const json = resp.data;
+      console.log(json);
+
+      const requestId = json.requestId;
+      const amount = json.amount;
+
+      await get().payWithNotes(requestId, amount);
+
+    } catch (err) {
+      console.error(err);
+      const errMsg = err && err.message ? err.message : 'getTopupData error';
+    }
+  },
+
+  payWithNotes: async (notes, amount) => {
+    console.log('payWithNotes');
+    // toAddress, notes, amountCoin, fee, nonce, signature, signer 
+    const { signer, contracts, accessToken, provider } = get();
+    const { delegator } = contracts;
+
+    const toAddress = CONFIG.deployer;
+    const amountCoin = amount + e18;
+
+    try {
+      const d = await delegator.eip712Domain();
+      const name = d[1];
+      const version = d[2];
+      const chainId = d[3];
+      const fee = CONFIG.feeCoin;
+      const nonce = (await delegator.getUserNonce(signer.address)) + 1n;
+
+      const domain = {
+        name,
+        version,
+        chainId: chainId,
+        verifyingContract: CONFIG.delegatorAddress
+      };
+      const types = {
+        PayWithNotes: [
+          { name: 'toAddress', type: 'address' },
+          { name: 'notes', type: 'string memory' },
+          { name: 'amountCoin', type: 'uint256' },
+          { name: 'fee', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' }
+        ],
+      };
+      const value = {
+        toAddress,
+        notes,
+        amountCoin,
+        fee,
+        nonce
+      };
+      const signature = await signer.signTypedData(domain, types, value);
+      const sender = await delegator.verifyPayWithNotes(
+        value.toAddress,
+        value.notes,
+        value.amountCoin,
+        value.fee,
+        value.nonce,
+        signature
+      );
+
+      if (sender.toLowerCase() !== signer.address.toLowerCase()) throw new Error('invalid verification');
+
+      console.log('transactions/payWithNotes');
+      const resp = await axios.post(CONFIG.baseUrl + '/transactions/payWithNotes', {
+        toAddress,
+        notes,
+        amountCoin,
+        fee: value.fee.toString(),
+        nonce: value.nonce.toString(),
+        signature,
+        signer: sender
+      }, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      console.log(resp.data);
+      const json = resp.data;
+      const txHash = json.txHash;
+      const receipt = await provider.waitForTransaction(txHash, 1);
+      console.log(receipt);
+
+      await get().refreshBalance();
+
+    } catch (err) {
+      console.error(err);
+      const errMsg = err && err.message ? err.message : 'sign error';
     }
   },
 }))

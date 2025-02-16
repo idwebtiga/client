@@ -72,12 +72,7 @@ export default function Loading(props) {
   return (
     <Page>
       <Block margin='my-1'>
-        <div className='grid grid-cols-1 gap-2'>
-          <pre className='flex flex-col justify-center items-center py-8'>
-            <GrAchievement size={128} />
-            <div className='text-3xl mt-8'>WEB3 APP</div>
-            <div>To the moon !!</div>
-          </pre>
+        <div className='p-32'>
           <div className='flex justify-center items-center'>
             {busy ? <Preloader /> : <Button onClick={() => enterApp()}>Masuk</Button>}
           </div>
